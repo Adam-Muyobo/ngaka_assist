@@ -72,6 +72,17 @@ class MockEncounterDataSource {
     return AppResult.ok(null);
   }
 
+
+  Future<AppResult<void>> submitTranscriptForNlp({
+    required String encounterId,
+    required String transcript,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    await _cache.put(_transcriptKey(encounterId), transcript);
+    await _cache.put(_nlpQueuedAtKey(encounterId), DateTime.now().toIso8601String());
+    return AppResult.ok(null);
+  }
+
   Future<AppResult<SoapDraftNote>> getSoapDraft(String encounterId) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     final raw = _cache.get(_soapKey(encounterId));
@@ -147,4 +158,5 @@ class MockEncounterDataSource {
   String _audioRefKey(String encounterId) => 'audio_ref:$encounterId';
   String _icdKey(String encounterId) => 'icd10:$encounterId';
   String _signedAtKey(String encounterId) => 'signed_at:$encounterId';
+  String _nlpQueuedAtKey(String encounterId) => 'nlp_queued_at:$encounterId';
 }

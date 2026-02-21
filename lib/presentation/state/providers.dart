@@ -4,6 +4,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/local_speech_to_text_service.dart';
 import '../../core/storage/token_store.dart';
 import '../../data/api/dio_client.dart';
 import '../../data/datasources/mock/mock_auth_datasource.dart';
@@ -25,6 +26,8 @@ import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/search_patients_usecase.dart';
 
 // Core providers.
+final localSpeechToTextProvider = Provider<LocalSpeechToTextService>((ref) => DeviceSpeechToTextService());
+
 final tokenStoreProvider = Provider<TokenStore>((ref) => TokenStore());
 
 final dioClientProvider = Provider<DioClient>((ref) {
@@ -65,6 +68,7 @@ final encounterRepositoryProvider = Provider<EncounterRepository>((ref) {
     remote: ref.watch(encounterRemoteDsProvider),
     mock: ref.watch(encounterMockDsProvider),
     mockPatients: ref.watch(patientMockDsProvider),
+    speechToText: ref.watch(localSpeechToTextProvider),
   );
 });
 

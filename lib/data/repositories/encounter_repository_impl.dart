@@ -5,6 +5,7 @@
 import 'dart:typed_data';
 
 import '../../core/constants.dart';
+import '../../core/services/local_speech_to_text_service.dart';
 import '../../core/result.dart';
 import '../../domain/entities/encounter.dart';
 import '../../domain/entities/icd10_suggestion.dart';
@@ -19,13 +20,16 @@ class EncounterRepositoryImpl implements EncounterRepository {
     required EncounterRemoteDataSource remote,
     required MockEncounterDataSource mock,
     required MockPatientDataSource mockPatients,
+    required LocalSpeechToTextService speechToText,
   })  : _remote = remote,
         _mock = mock,
-        _mockPatients = mockPatients;
+        _mockPatients = mockPatients,
+        _speechToText = speechToText;
 
   final EncounterRemoteDataSource _remote;
   final MockEncounterDataSource _mock;
   final MockPatientDataSource _mockPatients;
+  final LocalSpeechToTextService _speechToText;
 
   @override
   Future<AppResult<Encounter>> startEncounter({required String patientId, required String type}) async {
@@ -60,6 +64,50 @@ class EncounterRepositoryImpl implements EncounterRepository {
     // Mock-only helper used by Consultation Mode screen.
     // TODO(ngakaassist): Replace with streaming transcript endpoint when available.
     return _mock.saveTranscript(encounterId, transcript);
+  }
+
+
+  @override
+  RecorderState get recorderState => _speechToText.recorderState;
+
+  @override
+  String get transcriptDraft => _speechToText.transcriptDraft;
+
+  @override
+  Future<AppResult<void>> startRecording() {
+    return _speechToText.startRecording();
+  }
+
+  @override
+  Future<AppResult<void>> pauseRecording() {
+    return _speechToText.pauseRecording();
+  }
+
+  @override
+  Future<AppResult<void>> resumeRecording() {
+    return _speechToText.resumeRecording();
+  }
+
+  @override
+  Future<AppResult<void>> stopRecording() {
+    return _speechToText.stopRecording();
+  }
+
+  @override
+  Future<AppResult<void>> deleteRecording() {
+    return _speechToText.deleteRecording();
+  }
+
+  @override
+  Future<AppResult<String>> transcribeRecording() {
+    return _speechToText.transcribeRecording();
+  }
+
+  @override
+  Future<AppResult<void>> submitTranscriptForNlp({required String encounterId, required String transcript}) {
+    return kUseMockData
+        ? _mock.submitTranscriptForNlp(encounterId: encounterId, transcript: transcript)
+        : _remote.submitTranscriptForNlp(encounterId: encounterId, transcript: transcript);
   }
 
   @override
