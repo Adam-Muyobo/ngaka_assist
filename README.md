@@ -49,10 +49,18 @@ API paths live in `lib/data/api/api_paths.dart`:
 - `POST /encounters`
 - `POST /encounters/{id}/audio` (multipart)
 - `GET /encounters/{id}/transcript`
+- `POST /encounters/{id}/transcript/nlp` (submit in-app transcription text for NLP)
 - `GET /encounters/{id}/soap_draft`
 - `PUT /encounters/{id}/soap_draft`
 - `GET /encounters/{id}/icd10_suggestions`
 - `POST /encounters/{id}/sign`
+
+
+## Voice Transcription Flow
+
+- Consultation mode now supports an in-app **Transcribe + Send Text** action.
+- Audio is transcribed locally first (device-side placeholder service), and only the transcript text is posted to backend NLP.
+- This keeps the audio-to-text boundary inside the client, while still enabling server NLP workflows.
 
 ## Clean Architecture Map
 
@@ -61,6 +69,37 @@ API paths live in `lib/data/api/api_paths.dart`:
 - `lib/domain/` entities + repository contracts + usecases
 - `lib/data/` dio client, datasources (remote/mock), repository implementations, local Hive queue
 - `lib/presentation/` screens, widgets, Riverpod controllers/providers
+
+## Beginner Walkthrough
+
+If you are new to Flutter, think of this app in **5 layers**:
+
+1. **`main.dart` (entry point)**
+   - Starts Flutter, initializes local storage (Hive), then launches the app widget tree.
+2. **`lib/app/` (app shell)**
+   - Sets up routing (which screen to show) and theme (how things look).
+3. **`lib/presentation/` (UI + state)**
+   - Screens/widgets the user sees.
+   - Riverpod controllers keep UI state predictable and testable.
+4. **`lib/domain/` (business meaning)**
+   - Plain entities like Patient/Encounter and repository contracts.
+   - This layer does **not** depend on Flutter widgets.
+5. **`lib/data/` (data access)**
+   - Calls remote APIs or mock data sources and maps data back to domain models.
+
+### Typical Request Flow
+
+When a clinician searches for a patient:
+
+`Screen` → `Riverpod Controller` → `Use Case / Repository Contract` → `Repository Implementation` → `Remote or Mock Data Source`
+
+That result comes back through the same path to update the UI.
+
+### Why this structure helps beginners
+
+- You can change UI without breaking API code.
+- You can run locally with mock mode before backend is ready.
+- You can test logic in domain/data layers separately from widgets.
 
 ## TODO Roadmap (Planned Modules)
 

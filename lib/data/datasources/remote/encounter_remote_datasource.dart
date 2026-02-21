@@ -71,6 +71,24 @@ class EncounterRemoteDataSource {
     }
   }
 
+
+  Future<AppResult<void>> submitTranscriptForNlp({
+    required String encounterId,
+    required String transcript,
+  }) async {
+    try {
+      await _client.dio.post<void>(
+        ApiPaths.encounterTranscriptNlp(encounterId),
+        data: {'transcript': transcript},
+      );
+      return AppResult.ok(null);
+    } on DioException catch (e) {
+      return AppResult.err(mapDioError(e));
+    } catch (e) {
+      return AppResult.err(mapDioError(e));
+    }
+  }
+
   Future<AppResult<SoapDraftNote>> getSoapDraft(String encounterId) async {
     try {
       final res = await _client.dio.get<Map<String, dynamic>>(ApiPaths.encounterSoapDraft(encounterId));

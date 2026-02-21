@@ -16,6 +16,10 @@ abstract class EncounterRepository {
 
   Future<AppResult<String>> getTranscript(String encounterId);
 
+  Future<AppResult<String>> transcribeAudioLocally(Uint8List bytes);
+
+  Future<AppResult<void>> submitTranscriptForNlp({required String encounterId, required String transcript});
+
   Future<AppResult<SoapDraftNote>> getSoapDraft(String encounterId);
 
   Future<AppResult<SoapDraftNote>> updateSoapDraft(SoapDraftNote draft);

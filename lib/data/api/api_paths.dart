@@ -12,6 +12,7 @@ class ApiPaths {
   static String encounterById(String id) => '/encounters/$id';
   static String encounterAudio(String id) => '/encounters/$id/audio';
   static String encounterTranscript(String id) => '/encounters/$id/transcript';
+  static String encounterTranscriptNlp(String id) => '/encounters/$id/transcript/nlp';
   static String encounterSoapDraft(String id) => '/encounters/$id/soap_draft';
   static String encounterIcd10Suggestions(String id) => '/encounters/$id/icd10_suggestions';
   static String encounterSign(String id) => '/encounters/$id/sign';

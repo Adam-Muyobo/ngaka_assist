@@ -1,10 +1,11 @@
 // NgakaAssist
 // Screen: Consultation mode.
-// Voice-first UI prototype: placeholder recording controls + transcript box.
+// Voice-first UI prototype: local transcription + transcript-to-backend NLP handoff.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../state/encounter_controller.dart';
 import '../../widgets/app_background.dart';
@@ -75,7 +76,7 @@ class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen>
                             children: [
                               Expanded(
                                 child: FilledButton.icon(
-                                  onPressed: vm.isSigned
+                                  onPressed: vm.isSigned || vm.isProcessingSpeech
                                       ? null
                                       : () {
                                           setState(() => _recording = !_recording);
@@ -87,26 +88,37 @@ class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen>
                               const SizedBox(width: 10),
                               Expanded(
                                 child: FilledButton.tonalIcon(
-                                  onPressed: vm.isSigned ? null : () async {
-                                    final res = await ctrl.uploadDummyAudio();
-                                    if (!context.mounted) return;
-                                    if (!res.isOk) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text(res.failure?.message ?? 'Upload failed')),
-                                      );
-                                    }
-                                  },
-                                  icon: const Icon(Icons.cloud_upload_outlined),
-                                  label: const Text('Upload (dummy)'),
+                                  onPressed: vm.isSigned || vm.isProcessingSpeech
+                                      ? null
+                                      : () async {
+                                          final res = await ctrl.transcribeAndSendRecording();
+                                          if (!context.mounted) return;
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                res.isOk
+                                                    ? 'Local transcription sent to backend NLP'
+                                                    : (res.failure?.message ?? 'Transcription failed'),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                  icon: vm.isProcessingSpeech
+                                      ? const Icon(Icons.hourglass_top)
+                                      : const Icon(Icons.translate_outlined),
+                                  label: Text(vm.isProcessingSpeech ? 'Processing...' : 'Transcribe + Send Text'),
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 10),
-                          if (vm.audioRef != null)
-                            Text('Audio ref: ${vm.audioRef}', style: Theme.of(context).textTheme.bodySmall),
+                          if (vm.lastNlpSyncAt != null)
+                            Text(
+                              'Last NLP sync: ${DateFormat('y-MM-dd HH:mm').format(vm.lastNlpSyncAt!)}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                           Text(
-                            'TODO(ngakaassist): Integrate real audio recorder plugin and permission flows (mobile + web).',
+                            'Audio is transcribed locally in-app first, then only the transcript text is sent for NLP.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -159,11 +171,6 @@ class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen>
                                 ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'TODO(ngakaassist): Streaming transcript, diarization, and live highlight of key symptoms.',
-                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),

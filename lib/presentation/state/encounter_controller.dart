@@ -21,6 +21,8 @@ class EncounterState {
     required this.icd10,
     required this.isSigned,
     required this.audioRef,
+    required this.isProcessingSpeech,
+    required this.lastNlpSyncAt,
   });
 
   final String encounterId;
@@ -29,6 +31,8 @@ class EncounterState {
   final AsyncValue<List<Icd10Suggestion>> icd10;
   final bool isSigned;
   final String? audioRef;
+  final bool isProcessingSpeech;
+  final DateTime? lastNlpSyncAt;
 
   EncounterState copyWith({
     AsyncValue<String>? transcript,
@@ -36,6 +40,8 @@ class EncounterState {
     AsyncValue<List<Icd10Suggestion>>? icd10,
     bool? isSigned,
     String? audioRef,
+    bool? isProcessingSpeech,
+    DateTime? lastNlpSyncAt,
   }) {
     return EncounterState(
       encounterId: encounterId,
@@ -44,6 +50,8 @@ class EncounterState {
       icd10: icd10 ?? this.icd10,
       isSigned: isSigned ?? this.isSigned,
       audioRef: audioRef ?? this.audioRef,
+      isProcessingSpeech: isProcessingSpeech ?? this.isProcessingSpeech,
+      lastNlpSyncAt: lastNlpSyncAt ?? this.lastNlpSyncAt,
     );
   }
 }
@@ -71,6 +79,8 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
       icd10: const AsyncLoading(),
       isSigned: false,
       audioRef: null,
+      isProcessingSpeech: false,
+      lastNlpSyncAt: null,
     );
 
     _loadAll();
@@ -138,16 +148,44 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
     return res;
   }
 
-  Future<AppResult<void>> uploadDummyAudio() async {
-    // Placeholder action: uploads fake bytes to demonstrate flow and future queue.
-    // TODO(ngakaassist): Replace with real recording + offline queueing.
-    final bytes = Uint8List.fromList(List<int>.generate(256, (i) => i % 255));
-    final res = await _repo.uploadAudio(encounterId: state.encounterId, bytes: bytes, filename: 'consultation.wav');
-
-    if (res.isOk) {
-      state = state.copyWith(audioRef: _impl?.mockGetAudioRef(state.encounterId));
+  Future<AppResult<void>> transcribeAndSendRecording() async {
+    if (state.isSigned) {
+      return AppResult.err(AppFailure(message: 'Encounter is signed (locked)'));
     }
-    return res;
+
+    state = state.copyWith(isProcessingSpeech: true);
+
+    final audioBytes = Uint8List.fromList(List<int>.generate(2048, (i) => i % 255));
+    final transcriptionRes = await _repo.transcribeAudioLocally(audioBytes);
+    if (!transcriptionRes.isOk) {
+      state = state.copyWith(isProcessingSpeech: false);
+      return AppResult.err(transcriptionRes.failure!);
+    }
+
+    final transcript = transcriptionRes.data ?? '';
+    state = state.copyWith(transcript: AsyncData(transcript));
+
+    final nlpRes = await _repo.submitTranscriptForNlp(
+      encounterId: state.encounterId,
+      transcript: transcript,
+    );
+
+    if (!nlpRes.isOk) {
+      state = state.copyWith(isProcessingSpeech: false);
+      return nlpRes;
+    }
+
+    final saveRes = await saveTranscriptToDraft();
+    state = state.copyWith(
+      isProcessingSpeech: false,
+      lastNlpSyncAt: DateTime.now(),
+    );
+
+    if (!saveRes.isOk) {
+      return AppResult.err(saveRes.failure!);
+    }
+
+    return AppResult.ok(null);
   }
 
   Future<AppResult<SoapDraftNote>> saveSoapDraft(SoapDraftNote updated) async {

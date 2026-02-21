@@ -5,6 +5,7 @@
 import 'dart:typed_data';
 
 import '../../core/constants.dart';
+import '../../core/services/local_speech_to_text_service.dart';
 import '../../core/result.dart';
 import '../../domain/entities/encounter.dart';
 import '../../domain/entities/icd10_suggestion.dart';
@@ -19,13 +20,16 @@ class EncounterRepositoryImpl implements EncounterRepository {
     required EncounterRemoteDataSource remote,
     required MockEncounterDataSource mock,
     required MockPatientDataSource mockPatients,
+    required LocalSpeechToTextService speechToText,
   })  : _remote = remote,
         _mock = mock,
-        _mockPatients = mockPatients;
+        _mockPatients = mockPatients,
+        _speechToText = speechToText;
 
   final EncounterRemoteDataSource _remote;
   final MockEncounterDataSource _mock;
   final MockPatientDataSource _mockPatients;
+  final LocalSpeechToTextService _speechToText;
 
   @override
   Future<AppResult<Encounter>> startEncounter({required String patientId, required String type}) async {
@@ -60,6 +64,19 @@ class EncounterRepositoryImpl implements EncounterRepository {
     // Mock-only helper used by Consultation Mode screen.
     // TODO(ngakaassist): Replace with streaming transcript endpoint when available.
     return _mock.saveTranscript(encounterId, transcript);
+  }
+
+
+  @override
+  Future<AppResult<String>> transcribeAudioLocally(Uint8List bytes) {
+    return _speechToText.transcribe(bytes);
+  }
+
+  @override
+  Future<AppResult<void>> submitTranscriptForNlp({required String encounterId, required String transcript}) {
+    return kUseMockData
+        ? _mock.submitTranscriptForNlp(encounterId: encounterId, transcript: transcript)
+        : _remote.submitTranscriptForNlp(encounterId: encounterId, transcript: transcript);
   }
 
   @override
