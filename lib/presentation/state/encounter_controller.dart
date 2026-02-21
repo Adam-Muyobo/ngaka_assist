@@ -2,11 +2,10 @@
 // Encounter controller.
 // Owns transcript + SOAP draft + ICD-10 suggestions + signing state.
 
-import 'dart:typed_data';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/result.dart';
+import '../../core/services/local_speech_to_text_service.dart';
 import '../../data/repositories/encounter_repository_impl.dart';
 import '../../domain/entities/icd10_suggestion.dart';
 import '../../domain/entities/soap_draft_note.dart';
@@ -23,6 +22,7 @@ class EncounterState {
     required this.audioRef,
     required this.isProcessingSpeech,
     required this.lastNlpSyncAt,
+    required this.recorderState,
   });
 
   final String encounterId;
@@ -33,6 +33,7 @@ class EncounterState {
   final String? audioRef;
   final bool isProcessingSpeech;
   final DateTime? lastNlpSyncAt;
+  final RecorderState recorderState;
 
   EncounterState copyWith({
     AsyncValue<String>? transcript,
@@ -42,6 +43,7 @@ class EncounterState {
     String? audioRef,
     bool? isProcessingSpeech,
     DateTime? lastNlpSyncAt,
+    RecorderState? recorderState,
   }) {
     return EncounterState(
       encounterId: encounterId,
@@ -52,6 +54,7 @@ class EncounterState {
       audioRef: audioRef ?? this.audioRef,
       isProcessingSpeech: isProcessingSpeech ?? this.isProcessingSpeech,
       lastNlpSyncAt: lastNlpSyncAt ?? this.lastNlpSyncAt,
+      recorderState: recorderState ?? this.recorderState,
     );
   }
 }
@@ -63,7 +66,6 @@ final encounterControllerProvider = NotifierProviderFamily<EncounterController, 
 class EncounterController extends FamilyNotifier<EncounterState, String> {
   late final EncounterRepository _repo;
 
-  // Helper to access mock-only helpers without scattered casts.
   EncounterRepositoryImpl? get _impl => switch (_repo) {
         EncounterRepositoryImpl v => v,
         _ => null,
@@ -81,6 +83,7 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
       audioRef: null,
       isProcessingSpeech: false,
       lastNlpSyncAt: null,
+      recorderState: _repo.recorderState,
     );
 
     _loadAll();
@@ -88,16 +91,12 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
   }
 
   Future<void> _loadAll() async {
-    await Future.wait([
-      loadTranscript(),
-      loadSoapDraft(),
-      loadIcd10(),
-    ]);
+    await Future.wait([loadTranscript(), loadSoapDraft(), loadIcd10()]);
 
-    // Mock-only: surface saved dummy audio ref if present.
     state = state.copyWith(
       audioRef: _impl?.mockGetAudioRef(state.encounterId),
       isSigned: (_impl?.mockGetSignedAt(state.encounterId) != null),
+      recorderState: _repo.recorderState,
     );
   }
 
@@ -114,9 +113,7 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
     final res = await _repo.getSoapDraft(state.encounterId);
     if (res.isOk) {
       final d = res.data as SoapDraftNote;
-      state = state.copyWith(soapDraft: AsyncData(d));
-      // Keep transcript aligned.
-      state = state.copyWith(transcript: AsyncData(d.transcript));
+      state = state.copyWith(soapDraft: AsyncData(d), transcript: AsyncData(d.transcript));
     } else {
       state = state.copyWith(soapDraft: AsyncError(res.failure!, StackTrace.current));
     }
@@ -133,6 +130,45 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
 
   void updateTranscriptLocal(String value) {
     state = state.copyWith(transcript: AsyncData(value));
+  }
+
+  Future<AppResult<void>> startRecording() async {
+    final res = await _repo.startRecording();
+    state = state.copyWith(recorderState: _repo.recorderState);
+    return res;
+  }
+
+  Future<AppResult<void>> pauseRecording() async {
+    final res = await _repo.pauseRecording();
+    state = state.copyWith(
+      recorderState: _repo.recorderState,
+      transcript: AsyncData(_repo.transcriptDraft),
+    );
+    return res;
+  }
+
+  Future<AppResult<void>> resumeRecording() async {
+    final res = await _repo.resumeRecording();
+    state = state.copyWith(recorderState: _repo.recorderState);
+    return res;
+  }
+
+  Future<AppResult<void>> stopRecording() async {
+    final res = await _repo.stopRecording();
+    state = state.copyWith(
+      recorderState: _repo.recorderState,
+      transcript: AsyncData(_repo.transcriptDraft),
+    );
+    return res;
+  }
+
+  Future<AppResult<void>> deleteRecording() async {
+    final res = await _repo.deleteRecording();
+    state = state.copyWith(
+      recorderState: _repo.recorderState,
+      transcript: const AsyncData(''),
+    );
+    return res;
   }
 
   Future<AppResult<SoapDraftNote>> saveTranscriptToDraft() async {
@@ -155,8 +191,7 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
 
     state = state.copyWith(isProcessingSpeech: true);
 
-    final audioBytes = Uint8List.fromList(List<int>.generate(2048, (i) => i % 255));
-    final transcriptionRes = await _repo.transcribeAudioLocally(audioBytes);
+    final transcriptionRes = await _repo.transcribeRecording();
     if (!transcriptionRes.isOk) {
       state = state.copyWith(isProcessingSpeech: false);
       return AppResult.err(transcriptionRes.failure!);
@@ -179,6 +214,7 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
     state = state.copyWith(
       isProcessingSpeech: false,
       lastNlpSyncAt: DateTime.now(),
+      recorderState: _repo.recorderState,
     );
 
     if (!saveRes.isOk) {
@@ -206,11 +242,7 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
     final current = state.icd10.valueOrNull ?? const <Icd10Suggestion>[];
     final next = current.map((s) => s.code == code ? s.copyWith(accepted: accepted) : s).toList();
     state = state.copyWith(icd10: AsyncData(next));
-
-    // Mock-only persistence.
     _impl?.updateIcd10Suggestions(state.encounterId, next);
-
-    // TODO(ngakaassist): Persist accept/reject decisions in backend (new endpoint or via SOAP updates).
   }
 
   Future<AppResult<void>> sign() async {

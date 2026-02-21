@@ -36,7 +36,7 @@ flutter run --dart-define=NGAKA_USE_MOCK=false --dart-define=NGAKA_API_BASE_URL=
 
 Notes:
 - In mock mode, transcripts / SOAP drafts / ICD-10 suggestions are locally generated and persisted in Hive (`mock_cache`).
-- Audio recording is a UI placeholder; a dummy upload action exists to show where real recording + multipart upload will plug in.
+- Consultation mode now accesses the device microphone and uses platform speech-to-text via Flutter (`speech_to_text`).
 
 ## Backend Alignment (Client Scaffolding)
 
@@ -58,9 +58,9 @@ API paths live in `lib/data/api/api_paths.dart`:
 
 ## Voice Transcription Flow
 
-- Consultation mode now supports an in-app **Transcribe + Send Text** action.
-- Audio is transcribed locally first (device-side placeholder service), and only the transcript text is posted to backend NLP.
-- This keeps the audio-to-text boundary inside the client, while still enabling server NLP workflows.
+- Consultation mode uses the **device microphone** and Flutter's speech-to-text plugin.
+- Record, pause/resume, stop, or delete before transcription.
+- After stop/pause, the app transcribes locally in-app and sends only transcript text to backend NLP.
 
 ## Clean Architecture Map
 

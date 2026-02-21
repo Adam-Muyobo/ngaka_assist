@@ -4,6 +4,7 @@
 import 'dart:typed_data';
 
 import '../../core/result.dart';
+import '../../core/services/local_speech_to_text_service.dart';
 import '../entities/encounter.dart';
 import '../entities/icd10_suggestion.dart';
 import '../entities/soap_draft_note.dart';
@@ -16,7 +17,15 @@ abstract class EncounterRepository {
 
   Future<AppResult<String>> getTranscript(String encounterId);
 
-  Future<AppResult<String>> transcribeAudioLocally(Uint8List bytes);
+  RecorderState get recorderState;
+  String get transcriptDraft;
+
+  Future<AppResult<void>> startRecording();
+  Future<AppResult<void>> pauseRecording();
+  Future<AppResult<void>> resumeRecording();
+  Future<AppResult<void>> stopRecording();
+  Future<AppResult<void>> deleteRecording();
+  Future<AppResult<String>> transcribeRecording();
 
   Future<AppResult<void>> submitTranscriptForNlp({required String encounterId, required String transcript});
 

@@ -1,12 +1,13 @@
 // NgakaAssist
 // Screen: Consultation mode.
-// Voice-first UI prototype: local transcription + transcript-to-backend NLP handoff.
+// Voice-first UI with microphone recording controls and local STT to NLP handoff.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/services/local_speech_to_text_service.dart';
 import '../../state/encounter_controller.dart';
 import '../../widgets/app_background.dart';
 import '../../widgets/section_card.dart';
@@ -21,7 +22,6 @@ class ConsultationModeScreen extends ConsumerStatefulWidget {
 }
 
 class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen> {
-  bool _recording = false;
   final _transcriptCtrl = TextEditingController();
   final _transcriptFocus = FocusNode();
 
@@ -32,14 +32,29 @@ class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen>
     super.dispose();
   }
 
+  Future<void> _runAction(Future<dynamic> Function() action, String okMessage) async {
+    final res = await action();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(res.isOk ? okMessage : (res.failure?.message ?? 'Action failed'))),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = ref.watch(encounterControllerProvider(widget.encounterId));
     final ctrl = ref.read(encounterControllerProvider(widget.encounterId).notifier);
     final transcript = vm.transcript.valueOrNull ?? '';
+
     if (!_transcriptFocus.hasFocus && _transcriptCtrl.text != transcript) {
       _transcriptCtrl.text = transcript;
     }
+
+    final isRecording = vm.recorderState == RecorderState.recording;
+    final isPaused = vm.recorderState == RecorderState.paused;
+    final canStart = vm.recorderState == RecorderState.idle || vm.recorderState == RecorderState.stopped;
+    final canStop = isRecording || isPaused;
+    final canDelete = vm.recorderState != RecorderState.idle;
 
     return AppBackground(
       child: Scaffold(
@@ -68,48 +83,68 @@ class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen>
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            _recording ? 'Recording (placeholder)...' : 'Ready to record (placeholder).',
+                            switch (vm.recorderState) {
+                              RecorderState.idle => 'Ready to record from microphone.',
+                              RecorderState.recording => 'Recording from microphone...',
+                              RecorderState.paused => 'Recording paused.',
+                              RecorderState.stopped => 'Recording stopped. Ready to transcribe.',
+                            },
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 10),
-                          Row(
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
                             children: [
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: vm.isSigned || vm.isProcessingSpeech
-                                      ? null
-                                      : () {
-                                          setState(() => _recording = !_recording);
-                                        },
-                                  icon: Icon(_recording ? Icons.stop : Icons.mic),
-                                  label: Text(_recording ? 'Stop' : 'Record'),
-                                ),
+                              FilledButton.icon(
+                                onPressed: vm.isSigned || vm.isProcessingSpeech || !canStart
+                                    ? null
+                                    : () => _runAction(ctrl.startRecording, 'Recording started'),
+                                icon: const Icon(Icons.mic),
+                                label: const Text('Record'),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: FilledButton.tonalIcon(
-                                  onPressed: vm.isSigned || vm.isProcessingSpeech
-                                      ? null
-                                      : () async {
-                                          final res = await ctrl.transcribeAndSendRecording();
-                                          if (!context.mounted) return;
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                res.isOk
-                                                    ? 'Local transcription sent to backend NLP'
-                                                    : (res.failure?.message ?? 'Transcription failed'),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                  icon: vm.isProcessingSpeech
-                                      ? const Icon(Icons.hourglass_top)
-                                      : const Icon(Icons.translate_outlined),
-                                  label: Text(vm.isProcessingSpeech ? 'Processing...' : 'Transcribe + Send Text'),
-                                ),
+                              FilledButton.tonalIcon(
+                                onPressed: vm.isSigned || vm.isProcessingSpeech || !isRecording
+                                    ? null
+                                    : () => _runAction(ctrl.pauseRecording, 'Recording paused'),
+                                icon: const Icon(Icons.pause),
+                                label: const Text('Pause'),
+                              ),
+                              FilledButton.tonalIcon(
+                                onPressed: vm.isSigned || vm.isProcessingSpeech || !isPaused
+                                    ? null
+                                    : () => _runAction(ctrl.resumeRecording, 'Recording resumed'),
+                                icon: const Icon(Icons.play_arrow),
+                                label: const Text('Resume'),
+                              ),
+                              FilledButton.tonalIcon(
+                                onPressed: vm.isSigned || vm.isProcessingSpeech || !canStop
+                                    ? null
+                                    : () => _runAction(ctrl.stopRecording, 'Recording stopped'),
+                                icon: const Icon(Icons.stop),
+                                label: const Text('Stop'),
+                              ),
+                              FilledButton.tonalIcon(
+                                onPressed: vm.isSigned || vm.isProcessingSpeech || !canDelete
+                                    ? null
+                                    : () => _runAction(ctrl.deleteRecording, 'Recording deleted'),
+                                icon: const Icon(Icons.delete_outline),
+                                label: const Text('Delete'),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 10),
+                          FilledButton.icon(
+                            onPressed: vm.isSigned || vm.isProcessingSpeech || !canStop
+                                ? null
+                                : () => _runAction(
+                                      ctrl.transcribeAndSendRecording,
+                                      'Local transcript sent to backend NLP',
+                                    ),
+                            icon: vm.isProcessingSpeech
+                                ? const Icon(Icons.hourglass_top)
+                                : const Icon(Icons.translate_outlined),
+                            label: Text(vm.isProcessingSpeech ? 'Processing...' : 'Transcribe + Send Text'),
                           ),
                           const SizedBox(height: 10),
                           if (vm.lastNlpSyncAt != null)
@@ -118,7 +153,7 @@ class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen>
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           Text(
-                            'Audio is transcribed locally in-app first, then only the transcript text is sent for NLP.',
+                            'Record, pause/resume, stop or delete. Only transcript text is sent to backend NLP.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -137,9 +172,7 @@ class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen>
                             maxLines: 16,
                             focusNode: _transcriptFocus,
                             controller: _transcriptCtrl,
-                            decoration: const InputDecoration(
-                              hintText: 'Transcript will appear here...',
-                            ),
+                            decoration: const InputDecoration(hintText: 'Transcript will appear here...'),
                             onChanged: ctrl.updateTranscriptLocal,
                           ),
                           const SizedBox(height: 12),
@@ -149,17 +182,7 @@ class _ConsultationModeScreenState extends ConsumerState<ConsultationModeScreen>
                                 child: FilledButton(
                                   onPressed: vm.isSigned
                                       ? null
-                                      : () async {
-                                          final res = await ctrl.saveTranscriptToDraft();
-                                          if (!context.mounted) return;
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                res.isOk ? 'Transcript saved' : (res.failure?.message ?? 'Save failed'),
-                                              ),
-                                            ),
-                                          );
-                                        },
+                                      : () => _runAction(ctrl.saveTranscriptToDraft, 'Transcript saved'),
                                   child: const Text('Save transcript'),
                                 ),
                               ),

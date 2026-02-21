@@ -68,8 +68,39 @@ class EncounterRepositoryImpl implements EncounterRepository {
 
 
   @override
-  Future<AppResult<String>> transcribeAudioLocally(Uint8List bytes) {
-    return _speechToText.transcribe(bytes);
+  RecorderState get recorderState => _speechToText.recorderState;
+
+  @override
+  String get transcriptDraft => _speechToText.transcriptDraft;
+
+  @override
+  Future<AppResult<void>> startRecording() {
+    return _speechToText.startRecording();
+  }
+
+  @override
+  Future<AppResult<void>> pauseRecording() {
+    return _speechToText.pauseRecording();
+  }
+
+  @override
+  Future<AppResult<void>> resumeRecording() {
+    return _speechToText.resumeRecording();
+  }
+
+  @override
+  Future<AppResult<void>> stopRecording() {
+    return _speechToText.stopRecording();
+  }
+
+  @override
+  Future<AppResult<void>> deleteRecording() {
+    return _speechToText.deleteRecording();
+  }
+
+  @override
+  Future<AppResult<String>> transcribeRecording() {
+    return _speechToText.transcribeRecording();
   }
 
   @override

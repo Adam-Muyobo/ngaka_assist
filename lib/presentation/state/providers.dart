@@ -26,7 +26,7 @@ import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/search_patients_usecase.dart';
 
 // Core providers.
-final localSpeechToTextProvider = Provider<LocalSpeechToTextService>((ref) => PlaceholderLocalSpeechToTextService());
+final localSpeechToTextProvider = Provider<LocalSpeechToTextService>((ref) => DeviceSpeechToTextService());
 
 final tokenStoreProvider = Provider<TokenStore>((ref) => TokenStore());
 
