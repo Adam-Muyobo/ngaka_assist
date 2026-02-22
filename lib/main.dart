@@ -8,6 +8,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app/app.dart';
 import 'core/storage/hive_boxes.dart';
+import 'package:http/http.dart' as http;
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,3 +22,16 @@ Future<void> main() async {
 
   runApp(const ProviderScope(child: NgakaAssistApp()));
 }
+
+Future<void> fetchData() async {
+  final response = await http.get(
+    Uri.parse("http://192.168.1.100:5000/api"),
+  );
+
+  if (response.statusCode == 200) {
+    print('success');
+    print(response.body);
+  }
+}
+
+
