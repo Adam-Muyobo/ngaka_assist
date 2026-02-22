@@ -21,7 +21,13 @@ class ReviewSignScreen extends ConsumerWidget {
     final ctrl = ref.read(encounterControllerProvider(encounterId).notifier);
 
     final draft = vm.soapDraft.valueOrNull;
+    final transcriptText = vm.transcript.valueOrNull ?? '';
     final accepted = (vm.icd10.valueOrNull ?? const []).where((s) => s.accepted).toList();
+
+    final canSign = !vm.isSigned &&
+        !vm.isProcessingSpeech &&
+        transcriptText.trim().isNotEmpty &&
+        draft != null;
 
     return AppBackground(
       child: Scaffold(
@@ -61,18 +67,27 @@ class ReviewSignScreen extends ConsumerWidget {
                             const Text('Confirm the SOAP note and diagnoses are correct.'),
                             const SizedBox(height: 12),
                             FilledButton.icon(
-                              onPressed: () async {
-                                final res = await ctrl.sign();
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(res.isOk ? 'Signed' : (res.failure?.message ?? 'Sign failed')),
-                                  ),
-                                );
-                              },
+                              onPressed: canSign
+                                  ? () async {
+                                  final res = await ctrl.sign();
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(res.isOk ? 'Signed' : (res.failure?.message ?? 'Sign failed')),
+                                    ),
+                                  );
+                                }
+                                  : null,
                               icon: const Icon(Icons.verified),
                               label: const Text('Sign encounter'),
                             ),
+                            if (!canSign) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Transcribe and sync to generate SOAP/ICD-10 before signing.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
                             const SizedBox(height: 10),
                             Text(
                               'TODO(ngakaassist): Add clinician PIN/biometric signing and audit log entry.',

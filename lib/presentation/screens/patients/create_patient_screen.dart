@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/validators.dart';
@@ -60,6 +61,41 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    Widget fieldShell(Widget child) {
+      final fill = Color.alphaBlend(cs.primary.withOpacity(0.03), cs.surface);
+      final innerLight = Colors.white.withOpacity(0.85);
+      final innerDark = Colors.black.withOpacity(0.18);
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.45)),
+          boxShadow: [
+            BoxShadow(
+              color: innerLight,
+              offset: const Offset(-3, -3),
+              blurRadius: 10,
+              spreadRadius: -2,
+              blurStyle: BlurStyle.inner,
+            ),
+            BoxShadow(
+              color: innerDark,
+              offset: const Offset(3, 3),
+              blurRadius: 12,
+              spreadRadius: -2,
+              blurStyle: BlurStyle.inner,
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 2, right: 2, top: 2),
+          child: child,
+        ),
+      );
+    }
+
     return AppBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -71,74 +107,165 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: SectionCard(
-                  title: 'Patient details',
+                  title: 'New patient',
                   child: Form(
                     key: _formKey,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(
                           children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Color.alphaBlend(cs.primary.withOpacity(0.12), cs.surface),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.75),
+                                    offset: const Offset(-6, -6),
+                                    blurRadius: 14,
+                                    spreadRadius: -8,
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.10),
+                                    offset: const Offset(6, 6),
+                                    blurRadius: 16,
+                                    spreadRadius: -10,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(Icons.person_add_alt_1, color: cs.primary),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
-                              child: TextFormField(
-                                controller: _first,
-                                decoration: const InputDecoration(labelText: 'First name'),
-                                validator: (v) => Validators.requiredField(v, label: 'First name'),
+                              child: Text(
+                                'Capture demographics and identifiers. Omang and phone are required for Botswana workflows.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: fieldShell(
+                                TextFormField(
+                                  controller: _first,
+                                  decoration: const InputDecoration(
+                                    labelText: 'First name',
+                                    filled: false,
+                                    border: InputBorder.none,
+                                  ),
+                                  textCapitalization: TextCapitalization.words,
+                                  textInputAction: TextInputAction.next,
+                                  validator: (v) => Validators.personName(v, label: 'First name'),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: TextFormField(
-                                controller: _last,
-                                decoration: const InputDecoration(labelText: 'Last name'),
-                                validator: (v) => Validators.requiredField(v, label: 'Last name'),
+                              child: fieldShell(
+                                TextFormField(
+                                  controller: _last,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Last name',
+                                    filled: false,
+                                    border: InputBorder.none,
+                                  ),
+                                  textCapitalization: TextCapitalization.words,
+                                  textInputAction: TextInputAction.next,
+                                  validator: (v) => Validators.personName(v, label: 'Last name'),
+                                ),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _dob,
-                          readOnly: true,
-                          decoration: const InputDecoration(labelText: 'Date of birth'),
-                          onTap: _saving ? null : _pickDob,
-                          validator: (v) => Validators.requiredField(v, label: 'Date of birth'),
+                        fieldShell(
+                          TextFormField(
+                            controller: _dob,
+                            readOnly: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Date of birth',
+                              filled: false,
+                              border: InputBorder.none,
+                              suffixIcon: Icon(Icons.calendar_month),
+                            ),
+                            onTap: _saving ? null : _pickDob,
+                            validator: (v) => Validators.requiredField(v, label: 'Date of birth'),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         ValueListenableBuilder(
                           valueListenable: _gender,
                           builder: (context, g, _) {
-                            return DropdownButtonFormField<String>(
-                              value: g,
-                              decoration: const InputDecoration(labelText: 'Gender'),
-                              items: const [
-                                DropdownMenuItem(value: 'female', child: Text('Female')),
-                                DropdownMenuItem(value: 'male', child: Text('Male')),
-                                DropdownMenuItem(value: 'other', child: Text('Other')),
-                              ],
-                              onChanged: (v) => _gender.value = v ?? 'other',
+                            return fieldShell(
+                              DropdownButtonFormField<String>(
+                                value: g,
+                                decoration: const InputDecoration(
+                                  labelText: 'Gender',
+                                  filled: false,
+                                  border: InputBorder.none,
+                                ),
+                                items: const [
+                                  DropdownMenuItem(value: 'female', child: Text('Female')),
+                                  DropdownMenuItem(value: 'male', child: Text('Male')),
+                                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                                ],
+                                onChanged: (v) => _gender.value = v ?? 'other',
+                              ),
                             );
                           },
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _nationalId,
-                          decoration: const InputDecoration(labelText: 'National ID (optional)'),
+                        fieldShell(
+                          TextFormField(
+                            controller: _nationalId,
+                            decoration: const InputDecoration(
+                              labelText: 'Omang (National ID)',
+                              hintText: '9 digits',
+                              filled: false,
+                              border: InputBorder.none,
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(9),
+                            ],
+                            validator: (v) => Validators.bwNationalId(v, label: 'Omang'),
+                          ),
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _phone,
-                          decoration: const InputDecoration(labelText: 'Phone (optional)'),
-                          keyboardType: TextInputType.phone,
+                        fieldShell(
+                          TextFormField(
+                            controller: _phone,
+                            decoration: const InputDecoration(
+                              labelText: 'Phone number',
+                              hintText: '+267 7X XXX XXX',
+                              filled: false,
+                              border: InputBorder.none,
+                            ),
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
+                              LengthLimitingTextInputFormatter(16),
+                            ],
+                            validator: (v) => Validators.bwPhoneNumber(v),
+                          ),
                         ),
                         const SizedBox(height: 16),
-                        FilledButton(
+                        FilledButton.icon(
                           onPressed: _saving ? null : () => _onSave(context),
-                          child: Text(_saving ? 'Saving...' : 'Create patient'),
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: Text(_saving ? 'Saving...' : 'Create patient'),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'TODO(ngakaassist): Add DOB picker, address fields, next-of-kin, and patient identifiers.',
+                          'Tip: Enter Omang as 9 digits and we will store the phone in +267 format.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -157,6 +284,9 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
     final repo = ref.read(patientRepositoryProvider);
+
+    final omang = _nationalId.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+    final phone = Validators.normalizeBwPhoneNumber(_phone.text);
     final res = await repo.createPatient(
       Patient(
         id: '',
@@ -164,8 +294,8 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
         lastName: _last.text.trim(),
         dateOfBirth: _dobValue,
         gender: _gender.value,
-        nationalId: _nationalId.text.trim().isEmpty ? null : _nationalId.text.trim(),
-        phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+        nationalId: omang,
+        phone: phone,
       ),
     );
     if (!mounted) return;

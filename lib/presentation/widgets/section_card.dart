@@ -12,10 +12,36 @@ class SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final t = title;
-    return Card(
+
+    // Soft, slightly neumorphic surface (raised from the background).
+    final surface = Color.alphaBlend(cs.primary.withOpacity(0.025), cs.surface);
+    final highlight = Colors.white.withOpacity(0.85);
+    final shadow = Colors.black.withOpacity(0.10);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.55)),
+        boxShadow: [
+          BoxShadow(
+            color: highlight,
+            offset: const Offset(-10, -10),
+            blurRadius: 22,
+            spreadRadius: -6,
+          ),
+          BoxShadow(
+            color: shadow,
+            offset: const Offset(10, 10),
+            blurRadius: 24,
+            spreadRadius: -8,
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -25,7 +51,10 @@ class SectionCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       t,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2,
+                          ),
                     ),
                   ),
                   if (trailing != null) trailing!,
