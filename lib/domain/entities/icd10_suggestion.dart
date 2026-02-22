@@ -16,9 +16,10 @@ class Icd10Suggestion {
   final bool accepted;
 
   factory Icd10Suggestion.fromJson(Map<String, dynamic> json) {
+    // Backend uses keys: icd10_code, display, confidence
     return Icd10Suggestion(
-      code: (json['code'] ?? '').toString(),
-      description: (json['description'] ?? '').toString(),
+      code: (json['icd10_code'] ?? json['code'] ?? '').toString(),
+      description: (json['display'] ?? json['description'] ?? '').toString(),
       confidence: (json['confidence'] is num) ? (json['confidence'] as num).toDouble() : 0.0,
       accepted: (json['accepted'] ?? false) == true,
     );

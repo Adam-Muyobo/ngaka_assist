@@ -6,8 +6,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-import '../../api/api_paths.dart';
 import '../../api/dio_client.dart';
+import '../../api/api_constants.dart';
 import '../../../core/result.dart';
 import '../../../domain/entities/encounter.dart';
 import '../../../domain/entities/icd10_suggestion.dart';
@@ -18,18 +18,44 @@ class EncounterRemoteDataSource {
 
   final DioClient _client;
 
+  Map<String, dynamic> _unwrap(Map<String, dynamic>? body) {
+    final b = body ?? const <String, dynamic>{};
+    if (b['success'] != true) {
+      throw AppFailure(message: (b['message'] ?? 'Request failed').toString());
+    }
+    final data = b['data'];
+    if (data is Map) return data.cast<String, dynamic>();
+    return <String, dynamic>{'value': data};
+  }
+
   Future<AppResult<Encounter>> startEncounter({required String patientId, required String type}) async {
     try {
       final res = await _client.dio.post<Map<String, dynamic>>(
-        ApiPaths.encounters,
+        ApiConstants.encounters,
         data: {
           'patient_id': patientId,
-          'type': type,
+          'encounter_type': type,
         },
       );
-      return AppResult.ok(Encounter.fromJson(res.data ?? const {}));
+
+      final data = _unwrap(res.data);
+      return AppResult.ok(Encounter.fromJson(data));
     } on DioException catch (e) {
       return AppResult.err(mapDioError(e));
+    } catch (e) {
+      return AppResult.err(mapDioError(e));
+    }
+  }
+
+  Future<AppResult<Encounter>> getEncounter(String encounterId) async {
+    try {
+      final res = await _client.dio.get<Map<String, dynamic>>(ApiConstants.encounterById(encounterId));
+      final data = _unwrap(res.data);
+      return AppResult.ok(Encounter.fromJson(data));
+    } on DioException catch (e) {
+      return AppResult.err(mapDioError(e));
+    } on AppFailure catch (f) {
+      return AppResult.err(f);
     } catch (e) {
       return AppResult.err(mapDioError(e));
     }
@@ -41,17 +67,11 @@ class EncounterRemoteDataSource {
     required String filename,
   }) async {
     try {
-      // Web-friendly multipart: send bytes.
-      // TODO(ngakaassist): Real recorder integration (mobile + web) and large file chunking.
-      final form = FormData.fromMap({
-        'file': MultipartFile.fromBytes(bytes, filename: filename),
-      });
-      await _client.dio.post<void>(
-        ApiPaths.encounterAudio(encounterId),
-        data: form,
-        options: Options(contentType: 'multipart/form-data'),
+      // Backend does not accept audio blobs (by design).
+      // Keep this method for future sync queue work.
+      return AppResult.err(
+        AppFailure(message: 'Audio upload is not supported. Use on-device STT and send transcript text.'),
       );
-      return AppResult.ok(null);
     } on DioException catch (e) {
       return AppResult.err(mapDioError(e));
     } catch (e) {
@@ -61,8 +81,9 @@ class EncounterRemoteDataSource {
 
   Future<AppResult<String>> getTranscript(String encounterId) async {
     try {
-      final res = await _client.dio.get<Map<String, dynamic>>(ApiPaths.encounterTranscript(encounterId));
-      final transcript = (res.data?['transcript'] ?? '').toString();
+      final res = await _client.dio.get<Map<String, dynamic>>(ApiConstants.encounterTranscript(encounterId));
+      final data = _unwrap(res.data);
+      final transcript = (data['transcript_text'] ?? '').toString();
       return AppResult.ok(transcript);
     } on DioException catch (e) {
       return AppResult.err(mapDioError(e));
@@ -72,18 +93,22 @@ class EncounterRemoteDataSource {
   }
 
 
-  Future<AppResult<void>> submitTranscriptForNlp({
+  Future<AppResult<SoapDraftNote>> submitTranscriptForNlp({
     required String encounterId,
     required String transcript,
   }) async {
     try {
-      await _client.dio.post<void>(
-        ApiPaths.encounterTranscriptNlp(encounterId),
-        data: {'transcript': transcript},
+      final res = await _client.dio.post<Map<String, dynamic>>(
+        ApiConstants.encounterTranscriptNlp(encounterId),
+        data: {'transcript_text': transcript},
       );
-      return AppResult.ok(null);
+
+      final data = _unwrap(res.data);
+      return AppResult.ok(SoapDraftNote.fromJson(data));
     } on DioException catch (e) {
       return AppResult.err(mapDioError(e));
+    } on AppFailure catch (f) {
+      return AppResult.err(f);
     } catch (e) {
       return AppResult.err(mapDioError(e));
     }
@@ -91,8 +116,9 @@ class EncounterRemoteDataSource {
 
   Future<AppResult<SoapDraftNote>> getSoapDraft(String encounterId) async {
     try {
-      final res = await _client.dio.get<Map<String, dynamic>>(ApiPaths.encounterSoapDraft(encounterId));
-      return AppResult.ok(SoapDraftNote.fromJson(res.data ?? const {}));
+      final res = await _client.dio.get<Map<String, dynamic>>(ApiConstants.encounterSoap(encounterId));
+      final data = _unwrap(res.data);
+      return AppResult.ok(SoapDraftNote.fromJson(data));
     } on DioException catch (e) {
       return AppResult.err(mapDioError(e));
     } catch (e) {
@@ -103,10 +129,17 @@ class EncounterRemoteDataSource {
   Future<AppResult<SoapDraftNote>> updateSoapDraft(SoapDraftNote draft) async {
     try {
       final res = await _client.dio.put<Map<String, dynamic>>(
-        ApiPaths.encounterSoapDraft(draft.encounterId),
-        data: draft.toJson(),
+        ApiConstants.encounterSoap(draft.encounterId),
+        data: {
+          'subjective': draft.subjective,
+          'objective': draft.objective,
+          'assessment': draft.assessment,
+          'plan': draft.plan,
+          'transcript_text': draft.transcript,
+        },
       );
-      return AppResult.ok(SoapDraftNote.fromJson(res.data ?? const {}));
+      final data = _unwrap(res.data);
+      return AppResult.ok(SoapDraftNote.fromJson(data));
     } on DioException catch (e) {
       return AppResult.err(mapDioError(e));
     } catch (e) {
@@ -116,9 +149,10 @@ class EncounterRemoteDataSource {
 
   Future<AppResult<List<Icd10Suggestion>>> getIcd10Suggestions(String encounterId) async {
     try {
-      final res = await _client.dio.get<List<dynamic>>(ApiPaths.encounterIcd10Suggestions(encounterId));
-      final list = (res.data ?? const <dynamic>[])
-          .whereType<Map>()
+      final res = await _client.dio.get<Map<String, dynamic>>(ApiConstants.encounterDiagnosisSuggestions(encounterId));
+      final data = _unwrap(res.data);
+      final items = (data['suggestions'] as List?)?.whereType<Map>().toList() ?? const <Map>[];
+      final list = items
           .map((e) => Icd10Suggestion.fromJson(e.cast<String, dynamic>()))
           .toList();
       return AppResult.ok(list);
@@ -129,12 +163,40 @@ class EncounterRemoteDataSource {
     }
   }
 
-  Future<AppResult<void>> signEncounter(String encounterId) async {
+  Future<AppResult<void>> addDiagnosis({
+    required String encounterId,
+    required Icd10Suggestion suggestion,
+  }) async {
     try {
-      await _client.dio.post<void>(ApiPaths.encounterSign(encounterId));
+      final res = await _client.dio.post<Map<String, dynamic>>(
+        ApiConstants.encounterDiagnosis(encounterId),
+        data: {
+          'icd10_code': suggestion.code,
+          'description': suggestion.description,
+          'ai_suggested': true,
+          'confidence_score': (suggestion.confidence * 100).round(),
+        },
+      );
+      _unwrap(res.data);
       return AppResult.ok(null);
     } on DioException catch (e) {
       return AppResult.err(mapDioError(e));
+    } on AppFailure catch (f) {
+      return AppResult.err(f);
+    } catch (e) {
+      return AppResult.err(mapDioError(e));
+    }
+  }
+
+  Future<AppResult<Encounter>> signEncounter(String encounterId) async {
+    try {
+      final res = await _client.dio.post<Map<String, dynamic>>(ApiConstants.encounterSign(encounterId));
+      final data = _unwrap(res.data);
+      return AppResult.ok(Encounter.fromJson(data));
+    } on DioException catch (e) {
+      return AppResult.err(mapDioError(e));
+    } on AppFailure catch (f) {
+      return AppResult.err(f);
     } catch (e) {
       return AppResult.err(mapDioError(e));
     }

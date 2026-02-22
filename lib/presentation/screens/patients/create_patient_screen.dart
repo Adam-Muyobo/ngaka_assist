@@ -23,9 +23,12 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
   final _formKey = GlobalKey<FormState>();
   final _first = TextEditingController();
   final _last = TextEditingController();
+  final _dob = TextEditingController();
   final _gender = ValueNotifier<String>('female');
   final _nationalId = TextEditingController();
   final _phone = TextEditingController();
+
+  DateTime? _dobValue;
 
   bool _saving = false;
 
@@ -33,10 +36,26 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
   void dispose() {
     _first.dispose();
     _last.dispose();
+    _dob.dispose();
     _nationalId.dispose();
     _phone.dispose();
     _gender.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dobValue ?? DateTime(now.year - 30, now.month, now.day),
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: now,
+    );
+    if (picked == null) return;
+    setState(() {
+      _dobValue = DateTime(picked.year, picked.month, picked.day);
+      _dob.text = '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    });
   }
 
   @override
@@ -78,6 +97,14 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _dob,
+                          readOnly: true,
+                          decoration: const InputDecoration(labelText: 'Date of birth'),
+                          onTap: _saving ? null : _pickDob,
+                          validator: (v) => Validators.requiredField(v, label: 'Date of birth'),
+                        ),
+                        const SizedBox(height: 12),
                         ValueListenableBuilder(
                           valueListenable: _gender,
                           builder: (context, g, _) {
@@ -88,9 +115,8 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
                                 DropdownMenuItem(value: 'female', child: Text('Female')),
                                 DropdownMenuItem(value: 'male', child: Text('Male')),
                                 DropdownMenuItem(value: 'other', child: Text('Other')),
-                                DropdownMenuItem(value: 'unknown', child: Text('Unknown')),
                               ],
-                              onChanged: (v) => _gender.value = v ?? 'unknown',
+                              onChanged: (v) => _gender.value = v ?? 'other',
                             );
                           },
                         ),
@@ -136,7 +162,7 @@ class _CreatePatientScreenState extends ConsumerState<CreatePatientScreen> {
         id: '',
         firstName: _first.text.trim(),
         lastName: _last.text.trim(),
-        dateOfBirth: null,
+        dateOfBirth: _dobValue,
         gender: _gender.value,
         nationalId: _nationalId.text.trim().isEmpty ? null : _nationalId.text.trim(),
         phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),

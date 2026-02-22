@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/result.dart';
 import '../../core/services/local_speech_to_text_service.dart';
 import '../../data/repositories/encounter_repository_impl.dart';
+import '../../domain/entities/encounter.dart';
 import '../../domain/entities/icd10_suggestion.dart';
 import '../../domain/entities/soap_draft_note.dart';
 import '../../domain/repositories/encounter_repository.dart';
@@ -93,9 +94,12 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
   Future<void> _loadAll() async {
     await Future.wait([loadTranscript(), loadSoapDraft(), loadIcd10()]);
 
+    final encRes = await _repo.getEncounter(state.encounterId);
+    final isSigned = encRes.isOk && encRes.data != null ? (encRes.data as Encounter).isSigned : false;
+
     state = state.copyWith(
       audioRef: _impl?.mockGetAudioRef(state.encounterId),
-      isSigned: (_impl?.mockGetSignedAt(state.encounterId) != null),
+      isSigned: isSigned,
       recorderState: _repo.recorderState,
     );
   }
@@ -207,19 +211,21 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
 
     if (!nlpRes.isOk) {
       state = state.copyWith(isProcessingSpeech: false);
-      return nlpRes;
+      return AppResult.err(nlpRes.failure!);
     }
 
-    final saveRes = await saveTranscriptToDraft();
+    final note = nlpRes.data as SoapDraftNote;
+    state = state.copyWith(
+      soapDraft: AsyncData(note),
+      transcript: AsyncData(note.transcript),
+    );
+
+    await loadIcd10();
     state = state.copyWith(
       isProcessingSpeech: false,
       lastNlpSyncAt: DateTime.now(),
       recorderState: _repo.recorderState,
     );
-
-    if (!saveRes.isOk) {
-      return AppResult.err(saveRes.failure!);
-    }
 
     return AppResult.ok(null);
   }
@@ -238,19 +244,36 @@ class EncounterController extends FamilyNotifier<EncounterState, String> {
     return res;
   }
 
-  void setIcdAccepted(String code, bool accepted) {
+  Future<AppResult<void>> setIcdAccepted(String code, bool accepted) async {
     final current = state.icd10.valueOrNull ?? const <Icd10Suggestion>[];
+    final prev = current.firstWhere(
+      (s) => s.code == code,
+      orElse: () => const Icd10Suggestion(code: '', description: '', confidence: 0, accepted: false),
+    );
     final next = current.map((s) => s.code == code ? s.copyWith(accepted: accepted) : s).toList();
     state = state.copyWith(icd10: AsyncData(next));
+
+    if (accepted && prev.code.isNotEmpty && prev.accepted != true) {
+      final res = await _repo.addDiagnosis(encounterId: state.encounterId, suggestion: prev);
+      if (!res.isOk) {
+        // Best-effort revert.
+        final reverted = next.map((s) => s.code == code ? s.copyWith(accepted: false) : s).toList();
+        state = state.copyWith(icd10: AsyncData(reverted));
+        return AppResult.err(res.failure!);
+      }
+    }
+
     _impl?.updateIcd10Suggestions(state.encounterId, next);
+    return AppResult.ok(null);
   }
 
   Future<AppResult<void>> sign() async {
     if (state.isSigned) return AppResult.ok(null);
     final res = await _repo.signEncounter(state.encounterId);
-    if (res.isOk) {
-      state = state.copyWith(isSigned: true);
-    }
-    return res;
+    if (!res.isOk) return AppResult.err(res.failure!);
+
+    final enc = res.data as Encounter;
+    state = state.copyWith(isSigned: enc.isSigned);
+    return AppResult.ok(null);
   }
 }

@@ -5,7 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants.dart';
+import '../../../core/utils/validators.dart';
 import '../../state/auth_controller.dart';
 import '../../widgets/app_background.dart';
 import '../../widgets/section_card.dart';
@@ -72,6 +72,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 hintText: 'e.g. clinician01',
                               ),
                               textInputAction: TextInputAction.next,
+                              validator: (v) => Validators.requiredField(v, label: 'Username'),
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
@@ -81,6 +82,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               obscureText: true,
                               onFieldSubmitted: (_) => _onLogin(context),
+                              validator: (v) => Validators.requiredField(v, label: 'Password'),
                             ),
                             const SizedBox(height: 16),
                             SizedBox(
@@ -91,12 +93,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            Text(
-                              kUseMockData
-                                  ? 'Mock mode is ON (backend not required).'
-                                  : 'Mock mode is OFF (backend required).',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
                             // TODO(ngakaassist): Add password reset + SSO integration.
                           ],
                         ),
@@ -120,7 +116,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _onLogin(BuildContext context) async {
-    // MVP: allow empty creds in mock mode.
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     final res = await ref
         .read(authControllerProvider.notifier)
         .login(username: _username.text.trim(), password: _password.text);

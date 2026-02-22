@@ -31,7 +31,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
     return res.when(
       ok: (session) async {
-        await _tokenStore.saveToken(session.token);
+        await _tokenStore.saveTokens(accessToken: session.accessToken, refreshToken: session.refreshToken);
         return AppResult.ok(session);
       },
       err: (f) async => AppResult.err(f),
@@ -41,6 +41,12 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<AppResult<void>> logout() async {
     try {
+      if (!kUseMockData) {
+        final refresh = await _tokenStore.readRefreshToken();
+        if (refresh != null && refresh.isNotEmpty) {
+          await _remote.logout(refreshToken: refresh);
+        }
+      }
       await _tokenStore.clear();
       return AppResult.ok(null);
     } catch (e) {
@@ -50,18 +56,26 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<AppResult<AuthSession?>> currentSession() async {
-    // MVP: only token is persisted; user is not.
-    // TODO(ngakaassist): Persist user profile and validate token.
     try {
-      final token = await _tokenStore.readToken();
-      if (token == null || token.isEmpty) return AppResult.ok(null);
+      final access = await _tokenStore.readAccessToken();
+      final refresh = await _tokenStore.readRefreshToken();
+      if (access == null || access.isEmpty) return AppResult.ok(null);
+      if (refresh == null || refresh.isEmpty) return AppResult.ok(null);
+
       // In mock mode, reconstruct a simple user.
       if (kUseMockData) {
         return AppResult.ok(
-          AuthSession(token: token, user: const User(id: 'u_001', name: 'Clinician', role: 'clinician')),
+          AuthSession(
+            accessToken: access,
+            refreshToken: refresh,
+            user: const User(id: 'u_001', name: 'Clinician', role: 'clinician'),
+          ),
         );
       }
-      return AppResult.ok(null);
+
+      final meRes = await _remote.me();
+      if (!meRes.isOk || meRes.data == null) return AppResult.ok(null);
+      return AppResult.ok(AuthSession(accessToken: access, refreshToken: refresh, user: meRes.data as User));
     } catch (e) {
       return AppResult.err(AppFailure(message: 'Failed to read session', cause: e));
     }

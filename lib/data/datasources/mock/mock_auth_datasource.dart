@@ -13,6 +13,6 @@ class MockAuthDataSource {
 
     // TODO(ngakaassist): Add mock roles (clinician, nurse, admin) + RBAC rules in UI.
     final user = User(id: 'u_001', name: username.isEmpty ? 'Clinician' : username, role: 'clinician');
-    return AppResult.ok(AuthSession(token: 'mock-token', user: user));
+    return AppResult.ok(AuthSession(accessToken: 'mock-access', refreshToken: 'mock-refresh', user: user));
   }
 }

@@ -60,14 +60,34 @@ class Icd10SuggestionsScreen extends ConsumerWidget {
                             children: [
                               Expanded(
                                 child: FilledButton(
-                                  onPressed: vm.isSigned ? null : () => ctrl.setIcdAccepted(s.code, true),
+                                  onPressed: vm.isSigned
+                                      ? null
+                                      : () async {
+                                          final res = await ctrl.setIcdAccepted(s.code, true);
+                                          if (!context.mounted) return;
+                                          if (!res.isOk) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(res.failure?.message ?? 'Could not accept diagnosis')),
+                                            );
+                                          }
+                                        },
                                   child: Text(s.accepted ? 'Accepted' : 'Accept'),
                                 ),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: FilledButton.tonal(
-                                  onPressed: vm.isSigned ? null : () => ctrl.setIcdAccepted(s.code, false),
+                                  onPressed: vm.isSigned
+                                      ? null
+                                      : () async {
+                                          final res = await ctrl.setIcdAccepted(s.code, false);
+                                          if (!context.mounted) return;
+                                          if (!res.isOk) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(res.failure?.message ?? 'Could not reject diagnosis')),
+                                            );
+                                          }
+                                        },
                                   child: const Text('Reject'),
                                 ),
                               ),

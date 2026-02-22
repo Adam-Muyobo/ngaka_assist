@@ -45,6 +45,14 @@ class EncounterRepositoryImpl implements EncounterRepository {
   }
 
   @override
+  Future<AppResult<Encounter>> getEncounter(String encounterId) {
+    if (!kUseMockData) return _remote.getEncounter(encounterId);
+    final enc = _mock.getEncounter(encounterId);
+    if (enc == null) return Future.value(AppResult.err(AppFailure(message: 'Encounter not found')));
+    return Future.value(AppResult.ok(enc));
+  }
+
+  @override
   Future<AppResult<void>> uploadAudio({
     required String encounterId,
     required Uint8List bytes,
@@ -104,10 +112,14 @@ class EncounterRepositoryImpl implements EncounterRepository {
   }
 
   @override
-  Future<AppResult<void>> submitTranscriptForNlp({required String encounterId, required String transcript}) {
-    return kUseMockData
-        ? _mock.submitTranscriptForNlp(encounterId: encounterId, transcript: transcript)
-        : _remote.submitTranscriptForNlp(encounterId: encounterId, transcript: transcript);
+  Future<AppResult<SoapDraftNote>> submitTranscriptForNlp({required String encounterId, required String transcript}) async {
+    if (!kUseMockData) {
+      return _remote.submitTranscriptForNlp(encounterId: encounterId, transcript: transcript);
+    }
+
+    final res = await _mock.submitTranscriptForNlp(encounterId: encounterId, transcript: transcript);
+    if (!res.isOk) return AppResult.err(res.failure!);
+    return _mock.getSoapDraft(encounterId);
   }
 
   @override
@@ -134,8 +146,20 @@ class EncounterRepositoryImpl implements EncounterRepository {
   }
 
   @override
-  Future<AppResult<void>> signEncounter(String encounterId) {
-    return kUseMockData ? _mock.signEncounter(encounterId) : _remote.signEncounter(encounterId);
+  Future<AppResult<void>> addDiagnosis({required String encounterId, required Icd10Suggestion suggestion}) {
+    if (!kUseMockData) return _remote.addDiagnosis(encounterId: encounterId, suggestion: suggestion);
+    // Mock mode: acceptance is local-only.
+    return Future.value(AppResult.ok(null));
+  }
+
+  @override
+  Future<AppResult<Encounter>> signEncounter(String encounterId) async {
+    if (!kUseMockData) return _remote.signEncounter(encounterId);
+    final res = await _mock.signEncounter(encounterId);
+    if (!res.isOk) return AppResult.err(res.failure!);
+    final enc = _mock.getEncounter(encounterId);
+    if (enc == null) return AppResult.err(AppFailure(message: 'Encounter not found'));
+    return AppResult.ok(enc);
   }
 
   Encounter? mockGetEncounter(String id) => _mock.getEncounter(id);

@@ -10,12 +10,12 @@ import '../../domain/repositories/auth_repository.dart';
 import 'providers.dart';
 
 class AuthState {
-  const AuthState({required this.token, required this.user});
+  const AuthState({required this.accessToken, required this.user});
 
-  final String? token;
+  final String? accessToken;
   final User? user;
 
-  bool get isAuthenticated => token != null && token!.isNotEmpty;
+  bool get isAuthenticated => accessToken != null && accessToken!.isNotEmpty;
 }
 
 final authControllerProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthController.new);
@@ -27,7 +27,7 @@ class AuthController extends AsyncNotifier<AuthState> {
     final repo = ref.watch(authRepositoryProvider);
     final session = await repo.currentSession();
     final AuthSession? s = session.data;
-    return AuthState(token: s?.token, user: s?.user);
+    return AuthState(accessToken: s?.accessToken, user: s?.user);
   }
 
   Future<AppResult<void>> login({required String username, required String password}) async {
@@ -36,7 +36,7 @@ class AuthController extends AsyncNotifier<AuthState> {
     final res = await repo.login(username: username, password: password);
     return res.when(
       ok: (session) async {
-        state = AsyncData(AuthState(token: session.token, user: session.user));
+        state = AsyncData(AuthState(accessToken: session.accessToken, user: session.user));
         return AppResult.ok(null);
       },
       err: (f) async {
@@ -49,6 +49,6 @@ class AuthController extends AsyncNotifier<AuthState> {
   Future<void> logout() async {
     final repo = ref.read(authRepositoryProvider);
     await repo.logout();
-    state = const AsyncData(AuthState(token: null, user: null));
+    state = const AsyncData(AuthState(accessToken: null, user: null));
   }
 }

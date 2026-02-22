@@ -29,25 +29,25 @@ class SoapDraftNote {
   final DateTime updatedAt;
 
   factory SoapDraftNote.fromJson(Map<String, dynamic> json) {
+    final soap = (json['soap'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
     return SoapDraftNote(
       encounterId: (json['encounter_id'] ?? json['encounterId'] ?? '').toString(),
-      subjective: (json['subjective'] ?? '').toString(),
-      objective: (json['objective'] ?? '').toString(),
-      assessment: (json['assessment'] ?? '').toString(),
-      plan: (json['plan'] ?? '').toString(),
-      transcript: (json['transcript'] ?? '').toString(),
+      subjective: (soap['subjective'] ?? json['subjective'] ?? '').toString(),
+      objective: (soap['objective'] ?? json['objective'] ?? '').toString(),
+      assessment: (soap['assessment'] ?? json['assessment'] ?? '').toString(),
+      plan: (soap['plan'] ?? json['plan'] ?? '').toString(),
+      transcript: (json['transcript_text'] ?? json['transcript'] ?? '').toString(),
       aiGenerated: (json['ai_generated'] ?? json['aiGenerated'] ?? false) == true,
       updatedAt: DateTime.tryParse((json['updated_at'] ?? '').toString()) ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'encounter_id': encounterId,
         'subjective': subjective,
         'objective': objective,
         'assessment': assessment,
         'plan': plan,
-        'transcript': transcript,
+        'transcript_text': transcript,
         'ai_generated': aiGenerated,
         'updated_at': updatedAt.toIso8601String(),
       };

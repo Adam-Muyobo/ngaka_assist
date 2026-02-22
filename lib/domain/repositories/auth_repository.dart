@@ -6,9 +6,10 @@ import '../../core/result.dart';
 import '../entities/user.dart';
 
 class AuthSession {
-  const AuthSession({required this.token, required this.user});
+  const AuthSession({required this.accessToken, required this.refreshToken, required this.user});
 
-  final String token;
+  final String accessToken;
+  final String refreshToken;
   final User user;
 }
 

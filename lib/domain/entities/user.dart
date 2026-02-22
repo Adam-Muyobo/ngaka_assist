@@ -18,6 +18,25 @@ class User {
   final String? facilityId;
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // Backend may return a FHIR-ish Practitioner resource.
+    if ((json['resourceType'] ?? '').toString() == 'Practitioner') {
+      final nameList = (json['name'] as List?)?.whereType<Map>().toList() ?? const <Map>[];
+      final first = nameList.isEmpty ? const <String, dynamic>{} : nameList.first.cast<String, dynamic>();
+      final family = (first['family'] ?? '').toString();
+      final given = (first['given'] as List?)?.whereType<String>().toList() ?? const <String>[];
+      final displayName = ([...given, family].where((p) => p.trim().isNotEmpty).join(' ')).trim();
+
+      final ext = (json['extension'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      final role = (ext['role'] ?? json['role'] ?? 'clinician').toString();
+
+      return User(
+        id: (json['id'] ?? '').toString(),
+        name: displayName.isEmpty ? 'Clinician' : displayName,
+        role: role,
+        facilityId: (json['facility_id'] ?? '').toString().isEmpty ? null : json['facility_id']?.toString(),
+      );
+    }
+
     return User(
       id: (json['id'] ?? '').toString(),
       name: (json['name'] ?? json['full_name'] ?? '').toString(),

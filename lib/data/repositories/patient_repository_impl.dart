@@ -35,8 +35,6 @@ class PatientRepositoryImpl implements PatientRepository {
 
   @override
   Future<AppResult<List<Encounter>>> getEncounterHistory(String patientId) {
-    return kUseMockData
-        ? _mock.getEncounterHistory(patientId)
-        : Future.value(AppResult.err(AppFailure(message: 'Encounter history endpoint not implemented yet')));
+    return kUseMockData ? _mock.getEncounterHistory(patientId) : _remote.getEncounterHistory(patientId);
   }
 }

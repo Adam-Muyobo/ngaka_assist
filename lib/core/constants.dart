@@ -4,19 +4,11 @@
 
 // Mock mode toggle (required).
 //
-// Default: true so the app runs even when backend is unavailable.
+// Default: false (backend-connected).
 // Override at build-time with:
-//   flutter run --dart-define=NGAKA_USE_MOCK=false
-const bool _kUseMockFromEnv = bool.fromEnvironment('NGAKA_USE_MOCK', defaultValue: true);
+//   flutter run --dart-define=NGAKA_USE_MOCK=true
+const bool _kUseMockFromEnv = bool.fromEnvironment('NGAKA_USE_MOCK', defaultValue: false);
 bool kUseMockData = _kUseMockFromEnv;
-
-// Backend base URL (placeholder).
-// TODO(ngakaassist): Replace with real backend URL and environment strategy.
-const String kBackendBaseUrlDefault = 'https://api.ngakaassist.example';
-const String kBackendBaseUrl = String.fromEnvironment(
-  'NGAKA_API_BASE_URL',
-  defaultValue: kBackendBaseUrlDefault,
-);
 
 // Layout breakpoints.
 const double kBpCompact = 600;
